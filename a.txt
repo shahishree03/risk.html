@@ -5,7 +5,7 @@ const dataUrl = 'data/output.json'; // Use the correct data file
 const config = {
     useLocalData: true, // Use local output.json for most visualizations
     useVendorAPI: true, // Use external API only for vendor product data
-    vendorApiBase: 'https://raw.githubusercontent.com/shahishree03/Vendor_Product/refs/heads/master/JSON/',
+    vendorApiBase: 'data/JSON/',
     // API configuration for vulnerability trends
     vulnerabilityTrendsAPI: {
         enabled: true,
@@ -70,7 +70,6 @@ let currentFilters = {
     epssRange: [0, 100],
     cvssRange: [0, 10],
     exploitMaturity: ['Poc', 'Unreported','Attacked'],
-    riskScoreRange: [0, 100], // Add risk score range filter
     dateRange: {
         startDate: null,
         endDate: null
@@ -180,12 +179,6 @@ function filterData(data) {
         // CVSS Score filter
         const cvssScore = parseFloat(item.cvss_score) || 0;
         if (cvssScore < currentFilters.cvssRange[0] || cvssScore > currentFilters.cvssRange[1]) {
-            return false;
-        }
-        
-        // Risk Score filter - New filter for risk score range
-        const riskScore = parseFloat(item.Risk_Score) || 0;
-        if (riskScore < currentFilters.riskScoreRange[0] || riskScore > currentFilters.riskScoreRange[1]) {
             return false;
         }
         
@@ -1539,7 +1532,7 @@ function drawCVERiskHeatmap() {
 // Initialize CVE Risk Dashboard
 function initializeCVERiskDashboard() {
     // URL to the GitHub JSON file
-    const githubJsonUrl = 'data/risk.json';
+    const githubJsonUrl = 'data/RISK_SCORE.json';
     
     fetch(githubJsonUrl)
         .then(response => response.json())
@@ -1561,7 +1554,7 @@ function initializeCVERiskDashboard() {
         windowSlider.addEventListener('input', function() {
             riskWindowSize = parseInt(this.value);
             updateWindowSliderDisplay();
-            drawFilteredCVERiskHeatmap();
+            drawCVERiskHeatmap();
         });
     }
 }
@@ -1632,338 +1625,3 @@ function createVulnerabilityTrendsChart() {
     // Update the existing chart creation code to use chartData
     // ...
 }
-
-// Update summary statistics
-function updateSummaryStats(data) {
-    const filteredData = filterData(data);
-    
-    // Update total vulnerabilities count
-    const totalElement = document.getElementById('total-vulnerabilities');
-    if (totalElement) {
-        totalElement.textContent = filteredData.length;
-    }
-    
-    // Update severity counts
-    const severityCounts = {
-        critical: 0,
-        high: 0,
-        medium: 0,
-        low: 0
-    };
-    
-    filteredData.forEach(item => {
-        const severity = item.severity?.toLowerCase();
-        if (severityCounts.hasOwnProperty(severity)) {
-            severityCounts[severity]++;
-        }
-    });
-    
-    // Update UI elements
-    const criticalElement = document.getElementById('critical-count');
-    const highElement = document.getElementById('high-count');
-    const mediumElement = document.getElementById('medium-count');
-    const lowElement = document.getElementById('low-count');
-    
-    if (criticalElement) criticalElement.textContent = severityCounts.critical;
-    if (highElement) highElement.textContent = severityCounts.high;
-    if (mediumElement) mediumElement.textContent = severityCounts.medium;
-    if (lowElement) lowElement.textContent = severityCounts.low;
-    
-    // Update CISA KEV counts
-    const cisaYesCount = filteredData.filter(item => item.cisa_kev === 'yes').length;
-    const cisaNoCount = filteredData.filter(item => item.cisa_kev === 'no').length;
-    
-    const cisaYesElement = document.getElementById('cisa-yes-count');
-    const cisaNoElement = document.getElementById('cisa-no-count');
-    
-    if (cisaYesElement) cisaYesElement.textContent = cisaYesCount;
-    if (cisaNoElement) cisaNoElement.textContent = cisaNoCount;
-}
-
-// Enhanced CVE Risk Dashboard with all filters applied
-function initializeEnhancedCVERiskDashboard() {
-    // Load risk data with all filters from risk.html
-    fetch('data/risk.json')
-        .then(response => response.json())
-        .then(data => {
-            allRiskData = data;
-            
-            // Apply all filters from risk.html format
-            setupRiskFilters();
-            
-            // Initial draw
-            applyRiskFiltersAndDraw();
-        })
-        .catch(error => {
-            console.error('Error loading CVE risk data:', error);
-            const heatmapContainer = document.getElementById('cve-risk-heatmap');
-            if (heatmapContainer) {
-                heatmapContainer.innerHTML = 
-                    '<div style="text-align: center; padding: 50px; color: #666;">Error loading CVE risk data. Please check your connection.</div>';
-            }
-        });
-}
-
-// Setup risk filters based on risk.html structure
-function setupRiskFilters() {
-    // Date type filter (Published vs Last Modified)
-    const dateTypeRadios = document.querySelectorAll('input[name="dateType"]');
-    dateTypeRadios.forEach(radio => {
-        radio.addEventListener('change', applyRiskFiltersAndDraw);
-    });
-    
-    // Date range inputs
-    const dateFromInput = document.getElementById('dateFrom');
-    const dateToInput = document.getElementById('dateTo');
-    if (dateFromInput) dateFromInput.addEventListener('change', applyRiskFiltersAndDraw);
-    if (dateToInput) dateToInput.addEventListener('change', applyRiskFiltersAndDraw);
-    
-    // Exploit maturity checkboxes
-    const exploitCheckboxes = document.querySelectorAll('input[id^="exploit"]');
-    exploitCheckboxes.forEach(checkbox => {
-        checkbox.addEventListener('change', applyRiskFiltersAndDraw);
-    });
-    
-    // Geography checkboxes
-    const geoCheckboxes = document.querySelectorAll('input[id^="geo"]');
-    geoCheckboxes.forEach(checkbox => {
-        checkbox.addEventListener('change', applyRiskFiltersAndDraw);
-    });
-    
-    // CISA KEV radio buttons
-    const cisaRadios = document.querySelectorAll('input[name="cisaKev"]');
-    cisaRadios.forEach(radio => {
-        radio.addEventListener('change', applyRiskFiltersAndDraw);
-    });
-    
-    // Score range inputs
-    const cvssMin = document.getElementById('cvssMin');
-    const cvssMax = document.getElementById('cvssMax');
-    const epssMin = document.getElementById('epssMin');
-    const epssMax = document.getElementById('epssMax');
-    const riskMin = document.getElementById('riskMin');
-    const riskMax = document.getElementById('riskMax');
-    
-    [cvssMin, cvssMax, epssMin, epssMax, riskMin, riskMax].forEach(input => {
-        if (input) {
-            input.addEventListener('input', applyRiskFiltersAndDraw);
-        }
-    });
-    
-    // Window size slider
-    const windowSlider = document.getElementById('windowRange');
-    if (windowSlider) {
-        windowSlider.addEventListener('input', function() {
-            riskWindowSize = parseInt(this.value);
-            updateWindowSliderDisplay();
-            drawFilteredCVERiskHeatmap();
-        });
-    }
-}
-
-// Parse date function for risk data (handles DD-MM-YYYY format)
-function parseRiskDate(dateStr) {
-    if (!dateStr) return null;
-    
-    // Handle DD-MM-YYYY format
-    if (dateStr.includes('-') && dateStr.split('-')[0].length === 2) {
-        const parts = dateStr.split('-');
-        return new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
-    }
-    
-    // Handle other formats
-    return new Date(dateStr);
-}
-
-// Apply all risk filters and redraw heatmap
-function applyRiskFiltersAndDraw() {
-    if (!allRiskData || allRiskData.length === 0) return;
-    
-    // Get current filter values
-    const dateType = document.querySelector('input[name="dateType"]:checked')?.value || 'published';
-    const dateFrom = document.getElementById('dateFrom')?.value;
-    const dateTo = document.getElementById('dateTo')?.value;
-    
-    const exploitMaturity = Array.from(document.querySelectorAll('input[id^="exploit"]:checked')).map(cb => cb.value);
-    const geography = Array.from(document.querySelectorAll('input[id^="geo"]:checked')).map(cb => cb.value);
-    const cisaKev = document.querySelector('input[name="cisaKev"]:checked')?.value || 'all';
-    
-    const cvssMin = parseFloat(document.getElementById('cvssMin')?.value) || 0;
-    const cvssMax = parseFloat(document.getElementById('cvssMax')?.value) || 10;
-    const epssMin = parseFloat(document.getElementById('epssMin')?.value) || 0;
-    const epssMax = parseFloat(document.getElementById('epssMax')?.value) || 1;
-    const riskMin = parseFloat(document.getElementById('riskMin')?.value) || 0;
-    const riskMax = parseFloat(document.getElementById('riskMax')?.value) || 100;
-    
-    // Filter the risk data
-    const filteredRiskData = allRiskData.filter(item => {
-        // Date filter
-        if (dateFrom || dateTo) {
-            const itemDateStr = dateType === 'published' ? item.Published : item['Last Modified'];
-            const itemDate = parseRiskDate(itemDateStr);
-            
-            if (dateFrom && itemDate && itemDate < new Date(dateFrom)) return false;
-            if (dateTo && itemDate && itemDate > new Date(dateTo)) return false;
-        }
-        
-        // Exploit Maturity filter
-        if (exploitMaturity.length > 0 && !exploitMaturity.includes(item['Exploit Maturity'] || '')) return false;
-        
-        // Geography filter
-        if (geography.length > 0 && !geography.includes(item.Geography || '')) return false;
-        
-        // CISA KEV filter
-        if (cisaKev !== 'all' && item['CISA KEV'] !== cisaKev) return false;
-        
-        // CVSS Score filter
-        const cvssScore = parseFloat(item.CVSS_Numeric) || 0;
-        if (cvssScore < cvssMin || cvssScore > cvssMax) return false;
-        
-        // EPSS Score filter
-        const epssScore = parseFloat(item.EPSS_Numeric) || 0;
-        if (epssScore < epssMin || epssScore > epssMax) return false;
-        
-        // Risk Score filter
-        const riskScore = parseFloat(item.Risk_Score) || 0;
-        if (riskScore < riskMin || riskScore > riskMax) return false;
-        
-        return true;
-    });
-    
-    // Sort by Risk Score descending
-    filteredRiskData.sort((a, b) => (b.Risk_Score || 0) - (a.Risk_Score || 0));
-    
-    // Update filtered data and redraw
-    allRiskData = filteredRiskData;
-    updateRiskStats(filteredRiskData);
-    drawFilteredCVERiskHeatmap();
-}
-
-// Update risk statistics
-function updateRiskStats(data) {
-    const totalElement = document.getElementById('filteredCves');
-    const criticalElement = document.getElementById('criticalCount');
-    const highElement = document.getElementById('highCount');
-    
-    if (totalElement) totalElement.textContent = data.length;
-    
-    const criticalCount = data.filter(item => item.Risk_Category === 'Critical').length;
-    const highCount = data.filter(item => item.Risk_Category === 'High').length;
-    
-    if (criticalElement) criticalElement.textContent = criticalCount;
-    if (highElement) highElement.textContent = highCount;
-}
-
-// Draw filtered CVE Risk heatmap with enhanced trace
-function drawFilteredCVERiskHeatmap() {
-    if (!allRiskData || allRiskData.length === 0) {
-        const heatmapContainer = document.getElementById('cve-risk-heatmap');
-        if (heatmapContainer) {
-            heatmapContainer.innerHTML = '<div style="text-align: center; padding: 50px; color: #666;">No data available for current filters</div>';
-        }
-        return;
-    }
-    
-    const windowData = allRiskData.slice(0, riskWindowSize);
-    
-    if (windowData.length === 0) {
-        const heatmapContainer = document.getElementById('cve-risk-heatmap');
-        if (heatmapContainer) {
-            heatmapContainer.innerHTML = '<div style="text-align: center; padding:  50px; color: #666;">No results match the current filters</div>';
-        }
-        return;
-    }
-    
-    const riskScores = windowData.map(d => d.Risk_Score || 0);
-    const minRisk = Math.min(...riskScores);
-    const maxRisk = Math.max(...riskScores);
-    
-    const y = windowData.map(d => d['CVE-ID']);
-    const z = windowData.map(d => [d.Risk_Score || 0]);
-    const text = windowData.map(d => {
-        return [`CVE: ${d['CVE-ID']}<br>Risk Score: ${(d.Risk_Score || 0).toFixed(1)}<br>Category: ${d.Risk_Category}<br>CVSS: ${d.CVSS_Numeric || 0}<br>EPSS: ${(d.EPSS_Numeric || 0).toFixed(3)}<br>Geography: ${d.Geography || 'N/A'}<br>Exploit: ${d['Exploit Maturity'] || 'N/A'}<br>CISA KEV: ${d['CISA KEV'] || 'N/A'}`];
-    });
-    
-    const heatmapTrace = {
-        z,
-        x: ['Risk Score'],
-        y,
-        text,
-        type: 'heatmap',
-        colorscale: [
-            [0, '#FFF3CD'],     // Light yellow for low risk
-            [0.3, '#FFE69C'],   // Yellow
-            [0.6, '#FFAB40'],   // Orange
-            [0.8, '#FF7043'],   // Red-orange
-            [1, '#D32F2F']      // Dark red for high risk
-        ],
-        zmin: minRisk,
-        zmax: maxRisk > minRisk ? maxRisk : minRisk + 1,
-        hoverongaps: false,
-        hovertemplate: '%{text}<extra></extra>',
-        showscale: true,
-        colorbar: {
-            title: 'Risk Score',
-            titleside: 'right',
-            tickmode: 'linear',
-            tick0: minRisk,
-            dtick: maxRisk > minRisk ? (maxRisk - minRisk) / 5 : 1
-        }
-    };
-    
-    const heatmapLayout = {
-        title: `CVE Risk Score Heatmap (Top ${Math.min(riskWindowSize, allRiskData.length)} of ${allRiskData.length} filtered CVEs)`,
-        xaxis: {title: '', showticklabels: false},
-        yaxis: {
-            title: 'CVE-ID', 
-            automargin: true,
-            autorange: 'reversed'
-        },
-        height: Math.max(400, 40 + 30 * Math.min(riskWindowSize, allRiskData.length)),
-        margin: {l: 150, r: 80, t: 60, b: 40},
-        transition: {duration: 500, easing: 'cubic-in-out'}
-    };
-    
-    const heatmapContainer = document.getElementById('cve-risk-heatmap');
-    if (heatmapContainer) {
-        Plotly.react('cve-risk-heatmap', [heatmapTrace], heatmapLayout, {responsive: true});
-    }
-    
-    updateWindowSliderDisplay();
-}
-
-// Initialize all visualizations
-async function initializeDashboard() {
-    try {
-        // Fetch and process main data
-        const data = await fetchData();
-        
-        if (data && data.length > 0) {
-            // Setup filter handlers
-            setupFilterHandlers();
-            
-            // Create initial visualizations
-            createVulnerabilityTrends(data);
-            createAttackVectorChart(data);
-            createCVSSDistributionChart(data);
-            createVendorBubbleChart(data);
-            updateSummaryStats(data);
-            
-            // Initialize enhanced CVE Risk Dashboard with filtering
-            initializeEnhancedCVERiskDashboard();
-            
-            console.log('Dashboard initialized successfully');
-        } else {
-            console.error('No data available for dashboard');
-        }
-    } catch (error) {
-        console.error('Error initializing dashboard:', error);
-    }
-}
-
-// Export functions for global access
-window.initializeDashboard = initializeDashboard;
-window.updateVisualization = updateVisualization;
-window.setupFilterHandlers = setupFilterHandlers;
-window.initializeEnhancedCVERiskDashboard = initializeEnhancedCVERiskDashboard;
-window.applyRiskFiltersAndDraw = applyRiskFiltersAndDraw;
