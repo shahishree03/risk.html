@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>CVE Risk Dashboard</title>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body { 
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #f5f5f5;
+    }
+    
+    .container {
+      display: flex;
+      height: 100vh;
+    }
+    
+    /* Sidebar Styles */
+    .sidebar {
+      width: 320px;
+      background: #2c3e50;
+      color: white;
+      transition: transform 0.3s ease;
+      overflow-y: auto;
+      position: relative;
+    }
+    
+    .sidebar.closed {
+      transform: translateX(-280px);
+    }
+    
+    .sidebar-toggle {
+      position: absolute;
+      right: -40px;
+      top: 20px;
+      width: 40px;
+      height: 40px;
+      background: #34495e;
+      color: white;
+      border: none;
+      cursor: pointer;
+      border-radius: 0 5px 5px 0;
+      font-size: 18px;
+      z-index: 10;
+    }
+    
+    .sidebar-content {
+      padding: 20px;
+    }
+    
+    .filter-section {
+      margin-bottom: 25px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid #34495e;
+    }
+    
+    .filter-section:last-child {
+      border-bottom: none;
+    }
+    
+    .filter-title {
+      font-size: 16px;
+      font-weight: bold;
+      margin-bottom: 15px;
+      color: #ecf0f1;
+    }
+    
+    .radio-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    
+    .radio-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .checkbox-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    
+    .checkbox-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    input[type="radio"], input[type="checkbox"] {
+      accent-color: #3498db;
+    }
+    
+    .date-inputs {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    
+    .date-input {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    
+    input[type="date"], input[type="number"], select {
+      padding: 8px;
+      border: 1px solid #bdc3c7;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+    
+    .range-inputs {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    
+    .range-group {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    
+    .range-group input {
+      flex: 1;
+    }
+    
+    .apply-filters-btn {
+      width: 100%;
+      padding: 12px;
+      background: #3498db;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      font-size: 16px;
+      cursor: pointer;
+      margin-top: 20px;
+    }
+    
+    .apply-filters-btn:hover {
+      background: #2980b9;
+    }
+    
+    .reset-filters-btn {
+      width: 100%;
+      padding: 10px;
+      background: #e74c3c;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      font-size: 14px;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+    
+    .reset-filters-btn:hover {
+      background: #c0392b;
+    }
+    
+    /* Main Content */
+    .main-content {
+      flex: 1;
+      padding: 20px;
+      overflow: auto;
+    }
+    
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    
+    .stats {
+      display: flex;
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+    
+    .stat-card {
+      background: white;
+      padding: 15px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      min-width: 120px;
+    }
+    
+    .stat-title {
+      font-size: 12px;
+      color: #7f8c8d;
+      margin-bottom: 5px;
+    }
+    
+    .stat-value {
+      font-size: 24px;
+      font-weight: bold;
+      color: #2c3e50;
+    }
+    
+    #slider-container {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+    }
+    
+    #heatmap {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Sidebar -->
+    <div class="sidebar" id="sidebar">
+      <button class="sidebar-toggle" onclick="toggleSidebar()">☰</button>
+      <div class="sidebar-content">
+        <h2 style="margin-bottom: 30px;">Filters</h2>
+        
+        <!-- Date Type Selection -->
+        <div class="filter-section">
+          <div class="filter-title">Date Type</div>
+          <div class="radio-group">
+            <div class="radio-item">
+              <input type="radio" id="dateTypePublished" name="dateType" value="published" checked>
+              <label for="dateTypePublished">Published Date</label>
+            </div>
+            <div class="radio-item">
+              <input type="radio" id="dateTypeModified" name="dateType" value="modified">
+              <label for="dateTypeModified">Last Modified Date</label>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Date Range -->
+        <div class="filter-section">
+          <div class="filter-title">Date Range</div>
+          <div class="date-inputs">
+            <div class="date-input">
+              <label>From:</label>
+              <input type="date" id="dateFrom">
+            </div>
+            <div class="date-input">
+              <label>To:</label>
+              <input type="date" id="dateTo">
+            </div>
+          </div>
+        </div>
+        
+        <!-- Exploit Maturity -->
+        <div class="filter-section">
+          <div class="filter-title">Exploit Maturity</div>
+          <div class="checkbox-group">
+            <div class="checkbox-item">
+              <input type="checkbox" id="exploitAttacked" value="Attacked" checked>
+              <label for="exploitAttacked">Attacked</label>
+            </div>
+            <div class="checkbox-item">
+              <input type="checkbox" id="exploitPoc" value="Poc" checked>
+              <label for="exploitPoc">PoC</label>
+            </div>
+            <div class="checkbox-item">
+              <input type="checkbox" id="exploitUndefined" value="Undefined" checked>
+              <label for="exploitUndefined">Undefined</label>
+            </div>
+            <div class="checkbox-item">
+              <input type="checkbox" id="exploitUnreported" value="Unreported" checked>
+              <label for="exploitUnreported">Unreported</label>
+            </div>
+            <div class="checkbox-item">
+              <input type="checkbox" id="exploitEmpty" value="" checked>
+              <label for="exploitEmpty">Empty/None</label>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Geography -->
+        <div class="filter-section">
+          <div class="filter-title">Geography</div>
+          <div class="checkbox-group">
+            <div class="checkbox-item">
+              <input type="checkbox" id="geoImpacted" value="Impacted" checked>
+              <label for="geoImpacted">Impacted</label>
+            </div>
+            <div class="checkbox-item">
+              <input type="checkbox" id="geoNotImpacted" value="Not_Impacted" checked>
+              <label for="geoNotImpacted">Not Impacted</label>
+            </div>
+            <div class="checkbox-item">
+              <input type="checkbox" id="geoNone" value="" checked>
+              <label for="geoNone">None</label>
+            </div>
+          </div>
+        </div>
+        
+        <!-- CISA KEV -->
+        <div class="filter-section">
+          <div class="filter-title">CISA KEV</div>
+          <div class="radio-group">
+            <div class="radio-item">
+              <input type="radio" id="cisaAll" name="cisaKev" value="all" checked>
+              <label for="cisaAll">All</label>
+            </div>
+            <div class="radio-item">
+              <input type="radio" id="cisaYes" name="cisaKev" value="Yes">
+              <label for="cisaYes">Yes</label>
+            </div>
+            <div class="radio-item">
+              <input type="radio" id="cisaNo" name="cisaKev" value="No">
+              <label for="cisaNo">No</label>
+            </div>
+          </div>
+        </div>
+        
+        <!-- CVSS Score Range -->
+        <div class="filter-section">
+          <div class="filter-title">CVSS Score Range</div>
+          <div class="range-inputs">
+            <div class="range-group">
+              <input type="number" id="cvssMin" min="0" max="10" step="0.1" placeholder="Min" value="0">
+              <span>-</span>
+              <input type="number" id="cvssMax" min="0" max="10" step="0.1" placeholder="Max" value="10">
+            </div>
+          </div>
+        </div>
+        
+        <!-- EPSS Score Range -->
+        <div class="filter-section">
+          <div class="filter-title">EPSS Score Range</div>
+          <div class="range-inputs">
+            <div class="range-group">
+              <input type="number" id="epssMin" min="0" max="1" step="0.01" placeholder="Min" value="0">
+              <span>-</span>
+              <input type="number" id="epssMax" min="0" max="1" step="0.01" placeholder="Max" value="1">
+            </div>
+          </div>
+        </div>
+        
+        <!-- Risk Score Range -->
+        <div class="filter-section">
+          <div class="filter-title">Risk Score Range</div>
+          <div class="range-inputs">
+            <div class="range-group">
+              <input type="number" id="riskMin" min="0" max="100" step="0.1" placeholder="Min" value="0">
+              <span>-</span>
+              <input type="number" id="riskMax" min="0" max="100" step="0.1" placeholder="Max" value="100">
+            </div>
+          </div>
+        </div>
+        
+        <button class="apply-filters-btn" onclick="applyFilters()">Apply Filters</button>
+        <button class="reset-filters-btn" onclick="resetFilters()">Reset All Filters</button>
+      </div>
+    </div>
+    
+    <!-- Main Content -->
+    <div class="main-content">
+      <div class="header">
+        <h1>CVE Risk Dashboard</h1>
+      </div>
+      
+      <div class="stats">
+        <div class="stat-card">
+          <div class="stat-title">Total CVEs</div>
+          <div class="stat-value" id="totalCves">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-title">Filtered CVEs</div>
+          <div class="stat-value" id="filteredCves">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-title">Critical Risk</div>
+          <div class="stat-value" id="criticalCount">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-title">High Risk</div>
+          <div class="stat-value" id="highCount">0</div>
+        </div>
+      </div>
+      
+      <div id="slider-container">
+        <label for="windowRange">Show Top N CVEs: </label>
+        <input type="range" min="10" max="100" value="20" id="windowRange" step="1" style="width:350px;">
+        <span id="windowValueSlider">20</span>
+      </div>
+      
+      <div id="heatmap"></div>
+    </div>
+  </div>
+
+  <script>
+    let allData = [];
+    let filteredData = [];
+    let windowSize = 20;
+
+    // Parse date function
+    function parseDate(dateStr) {
+      if (!dateStr) return null;
+      // Handle different date formats
+      const formats = [
+        /^(\d{2})-(\d{2})-(\d{4})$/, // DD-MM-YYYY
+        /^(\d{4})-(\d{2})-(\d{2})$/, // YYYY-MM-DD
+        /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/ // MM/DD/YYYY or DD/MM/YYYY
+      ];
+      
+      for (let format of formats) {
+        const match = dateStr.match(format);
+        if (match) {
+          if (format === formats[0]) { // DD-MM-YYYY
+            return new Date(match[3], match[2] - 1, match[1]);
+          } else if (format === formats[1]) { // YYYY-MM-DD
+            return new Date(match[1], match[2] - 1, match[3]);
+          } else { // MM/DD/YYYY
+            return new Date(match[3], match[1] - 1, match[2]);
+          }
+        }
+      }
+      return new Date(dateStr);
+    }
+
+    // Filter data based on current filter settings
+    function filterData() {
+      const dateType = document.querySelector('input[name="dateType"]:checked').value;
+      const dateFrom = document.getElementById('dateFrom').value;
+      const dateTo = document.getElementById('dateTo').value;
+      
+      const exploitMaturity = Array.from(document.querySelectorAll('input[id^="exploit"]:checked')).map(cb => cb.value);
+      const geography = Array.from(document.querySelectorAll('input[id^="geo"]:checked')).map(cb => cb.value);
+      const cisaKev = document.querySelector('input[name="cisaKev"]:checked').value;
+      
+      const cvssMin = parseFloat(document.getElementById('cvssMin').value) || 0;
+      const cvssMax = parseFloat(document.getElementById('cvssMax').value) || 10;
+      const epssMin = parseFloat(document.getElementById('epssMin').value) || 0;
+      const epssMax = parseFloat(document.getElementById('epssMax').value) || 1;
+      const riskMin = parseFloat(document.getElementById('riskMin').value) || 0;
+      const riskMax = parseFloat(document.getElementById('riskMax').value) || 100;
+
+      filteredData = allData.filter(item => {
+        // Date filter
+        if (dateFrom || dateTo) {
+          const itemDateStr = dateType === 'published' ? item.Published : item['Last Modified'];
+          const itemDate = parseDate(itemDateStr);
+          
+          if (dateFrom && itemDate && itemDate < new Date(dateFrom)) return false;
+          if (dateTo && itemDate && itemDate > new Date(dateTo)) return false;
+        }
+        
+        // Exploit Maturity filter
+        if (!exploitMaturity.includes(item['Exploit Maturity'] || '')) return false;
+        
+        // Geography filter
+        if (!geography.includes(item.Geography || '')) return false;
+        
+        // CISA KEV filter
+        if (cisaKev !== 'all' && item['CISA KEV'] !== cisaKev) return false;
+        
+        // CVSS Score filter
+        const cvssScore = item.CVSS_Numeric || 0;
+        if (cvssScore < cvssMin || cvssScore > cvssMax) return false;
+        
+        // EPSS Score filter
+        const epssScore = item.EPSS_Numeric || 0;
+        if (epssScore < epssMin || epssScore > epssMax) return false;
+        
+        // Risk Score filter
+        const riskScore = item.Risk_Score || 0;
+        if (riskScore < riskMin || riskScore > riskMax) return false;
+        
+        return true;
+      });
+
+      // Sort by Risk Score descending
+      filteredData.sort((a, b) => (b.Risk_Score || 0) - (a.Risk_Score || 0));
+      
+      updateStats();
+      drawHeatmap();
+    }
+
+    // Update statistics
+    function updateStats() {
+      document.getElementById('totalCves').textContent = allData.length;
+      document.getElementById('filteredCves').textContent = filteredData.length;
+      
+      const criticalCount = filteredData.filter(item => item.Risk_Category === 'Critical').length;
+      const highCount = filteredData.filter(item => item.Risk_Category === 'High').length;
+      
+      document.getElementById('criticalCount').textContent = criticalCount;
+      document.getElementById('highCount').textContent = highCount;
+    }
+
+    // Get heatmap data for Plotly
+    function getHeatmapTrace(data, windowSize) {
+      const windowData = data.slice(0, windowSize);
+      
+      if (windowData.length === 0) {
+        return {
+          z: [[]],
+          x: ['No Data'],
+          y: ['No Results'],
+          type: 'heatmap',
+          colorscale: [[0, 'gray'], [1, 'gray']],
+          showscale: false,
+          hovertemplate: 'No data available<extra></extra>'
+        };
+      }
+      
+      const riskScores = windowData.map(d => d.Risk_Score || 0);
+      const minRisk = Math.min(...riskScores);
+      const maxRisk = Math.max(...riskScores);
+      
+      const y = windowData.map(d => d['CVE-ID']);
+      const z = windowData.map(d => [d.Risk_Score || 0]);
+      const text = windowData.map(d => {
+        return [`CVE: ${d['CVE-ID']}<br>Risk Score: ${(d.Risk_Score || 0).toFixed(1)}<br>Category: ${d.Risk_Category}<br>CVSS: ${d.CVSS_Numeric || 0}<br>EPSS: ${(d.EPSS_Numeric || 0).toFixed(3)}`];
+      });
+      
+      return {
+        z,
+        x: ['Risk Score'],
+        y,
+        text,
+        type: 'heatmap',
+        colorscale: [
+          [0, '#FFF3CD'],     // Light yellow for low risk
+          [0.3, '#FFE69C'],   // Yellow
+          [0.6, '#FFAB40'],   // Orange
+          [0.8, '#FF7043'],   // Red-orange
+          [1, '#D32F2F']      // Dark red for high risk
+        ],
+        zmin: minRisk,
+        zmax: maxRisk > minRisk ? maxRisk : minRisk + 1,
+        hoverongaps: false,
+        hovertemplate: '%{text}<extra></extra>',
+        showscale: true,
+        colorbar: {
+          title: 'Risk Score',
+          titleside: 'right',
+          tickmode: 'linear',
+          tick0: minRisk,
+          dtick: maxRisk > minRisk ? (maxRisk - minRisk) / 5 : 1
+        }
+      };
+    }
+
+    // Draw heatmap
+    function drawHeatmap() {
+      const heatmapTrace = getHeatmapTrace(filteredData, windowSize);
+      const heatmapLayout = {
+        title: `CVE Risk Score Heatmap (Top ${Math.min(windowSize, filteredData.length)} of ${filteredData.length} filtered CVEs)`,
+        xaxis: {title: '', showticklabels: false},
+        yaxis: {
+          title: 'CVE-ID', 
+          automargin: true,
+          autorange: 'reversed'
+        },
+        height: Math.max(400, 40 + 30 * Math.min(windowSize, filteredData.length)),
+        margin: {l: 150, r: 80, t: 60, b: 40},
+        transition: {duration: 500, easing: 'cubic-in-out'}
+      };
+      Plotly.react('heatmap', [heatmapTrace], heatmapLayout, {responsive: true});
+      document.getElementById('windowValueSlider').textContent = windowSize;
+    }
+
+    // Toggle sidebar
+    function toggleSidebar() {
+      const sidebar = document.getElementById('sidebar');
+      sidebar.classList.toggle('closed');
+    }
+
+    // Apply filters
+    function applyFilters() {
+      filterData();
+    }
+
+    // Reset filters
+    function resetFilters() {
+      // Reset all form elements
+      document.getElementById('dateTypePublished').checked = true;
+      document.getElementById('dateFrom').value = '';
+      document.getElementById('dateTo').value = '';
+      
+      // Reset exploit maturity checkboxes
+      document.querySelectorAll('input[id^="exploit"]').forEach(cb => cb.checked = true);
+      
+      // Reset geography checkboxes
+      document.querySelectorAll('input[id^="geo"]').forEach(cb => cb.checked = true);
+      
+      // Reset CISA KEV
+      document.getElementById('cisaAll').checked = true;
+      
+      // Reset score ranges
+      document.getElementById('cvssMin').value = 0;
+      document.getElementById('cvssMax').value = 10;
+      document.getElementById('epssMin').value = 0;
+      document.getElementById('epssMax').value = 1;
+      document.getElementById('riskMin').value = 0;
+      document.getElementById('riskMax').value = 100;
+      
+      // Apply filters (which will now show all data)
+      filterData();
+    }
+
+    // Handle slider
+    document.getElementById('windowRange').addEventListener('input', function() {
+      windowSize = parseInt(this.value);
+      drawHeatmap();
+    });
+
+    // Load data
+    fetch('data/RISK_SCORE.json') // Update this path to your JSON file
+      .then(r => r.json())
+      .then(data => {
+        allData = data;
+        filteredData = [...allData].sort((a, b) => (b.Risk_Score || 0) - (a.Risk_Score || 0));
+        updateStats();
+        drawHeatmap();
+      })
+      .catch(err => {
+        console.error('Error loading data:', err);
+        // Show error message
+        document.getElementById('heatmap').innerHTML = '<p style="text-align:center; color:red; font-size:18px;">Error loading data. Please check if the JSON file exists at the specified path.</p>';
+      });
+  </script>
+</body>
+</html>
