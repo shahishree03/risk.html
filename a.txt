@@ -594,6 +594,14 @@ function updateDateRangeTitle(dateType) {
     }
 }
 
+// Update summary statistics
+function updateSummaryStats(data) {
+    // This function can be used to update any summary statistics display
+    // For now, it's a placeholder that can be expanded later
+    const filteredData = filterData(data);
+    console.log(`Summary: ${filteredData.length} vulnerabilities after filtering`);
+}
+
 // Update visualization
 function updateVisualization() {
     if (globalData.length > 0) {
@@ -1463,11 +1471,125 @@ async function createVendorBubbleChart(data) {
 
 // CVE Risk Dashboard Heatmap
 let allRiskData = [];
+let filteredRiskData = [];
 let riskWindowSize = 20;
+
+// Filter risk data based on current filters
+function filterRiskData(data) {
+    if (!data || data.length === 0) return [];
+    
+    return data.filter(item => {
+        // Date range filter - Filter based on selected date type
+        if (currentFilters.dateRange.startDate || currentFilters.dateRange.endDate) {
+            let targetDate;
+            
+            // Select the appropriate date field based on current date type filter
+            if (currentFilters.dateType === 'Published') {
+                const publishedStr = item.Published;
+                if (publishedStr && publishedStr.includes('-') && publishedStr.split('-')[0].length === 2) {
+                    // Handle DD-MM-YYYY format
+                    const parts = publishedStr.split('-');
+                    targetDate = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+                } else {
+                    targetDate = new Date(publishedStr);
+                }
+            } else if (currentFilters.dateType === 'modified') {
+                const modifiedStr = item['Last Modified'];
+                if (modifiedStr && modifiedStr.includes('-') && modifiedStr.split('-')[0].length === 2) {
+                    // Handle DD-MM-YYYY format
+                    const parts = modifiedStr.split('-');
+                    targetDate = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+                } else {
+                    targetDate = new Date(modifiedStr);
+                }
+            } else {
+                targetDate = new Date(item.Published); // Default fallback
+            }
+            
+            // Skip invalid dates
+            if (isNaN(targetDate.getTime())) {
+                return false;
+            }
+            
+            // Apply date range filters
+            if (currentFilters.dateRange.startDate) {
+                const startDate = new Date(currentFilters.dateRange.startDate);
+                if (targetDate < startDate) return false;
+            }
+            
+            if (currentFilters.dateRange.endDate) {
+                const endDate = new Date(currentFilters.dateRange.endDate);
+                if (targetDate > endDate) return false;
+            }
+        }
+        
+        // CISA KEV filter
+        if (currentFilters.cisaKev !== 'all') {
+            const cisaKevValue = item['CISA KEV'] || item.cisa_kev;
+            const normalizedValue = cisaKevValue ? cisaKevValue.toString().toLowerCase() : 'no';
+            if (currentFilters.cisaKev === 'yes' && normalizedValue !== 'yes') return false;
+            if (currentFilters.cisaKev === 'no' && normalizedValue === 'yes') return false;
+        }
+        
+        // Geography filter
+        if (currentFilters.geography !== 'all') {
+            const geography = item.Geography || item.geography;
+            if (geography !== currentFilters.geography) return false;
+        }
+        
+        // CVSS Score filter
+        const cvssScore = parseFloat(item.CVSS_Numeric || item.cvss_score) || 0;
+        if (cvssScore < currentFilters.cvssRange[0] || cvssScore > currentFilters.cvssRange[1]) {
+            return false;
+        }
+        
+        // EPSS Score filter (convert percentage to decimal for comparison)
+        const epssScore = parseFloat(item.EPSS_Numeric || item.epss_score) || 0;
+        const epssMin = currentFilters.epssRange[0] / 100;
+        const epssMax = currentFilters.epssRange[1] / 100;
+        if (epssScore < epssMin || epssScore > epssMax) {
+            return false;
+        }
+        
+        // Risk Score range filter (if we want to add it later)
+        const riskScore = parseFloat(item.Risk_Score) || 0;
+        // You can add risk score range filter here if needed
+        
+        // Exploit Maturity filter
+        if (currentFilters.exploitMaturity && currentFilters.exploitMaturity.length > 0) {
+            const exploitMaturity = item['Exploit Maturity'] || item.exploit_maturity;
+            if (!currentFilters.exploitMaturity.includes(exploitMaturity)) {
+                return false;
+            }
+        }
+        
+        // Severity filter based on CVSS score
+        if (currentFilters.severities && currentFilters.severities.length > 0) {
+            const severity = calculateSeverity(cvssScore);
+            if (!currentFilters.severities.includes(severity)) {
+                return false;
+            }
+        }
+        
+        return true;
+    });
+}
 
 // Utility to get heatmap data for Plotly
 function getHeatmapTrace(data, windowSize) {
     const windowData = data.slice(0, windowSize);
+    
+    if (windowData.length === 0) {
+        return {
+            z: [[]],
+            x: ['No Data'],
+            y: ['No Results'],
+            type: 'heatmap',
+            colorscale: [[0, 'gray'], [1, 'gray']],
+            showscale: false,
+            hovertemplate: 'No data available<extra></extra>'
+        };
+    }
     
     // Find min and max risk scores for proper scaling
     const riskScores = windowData.map(d => d.Risk_Score);
@@ -1476,21 +1598,34 @@ function getHeatmapTrace(data, windowSize) {
     
     const y = windowData.map(d => d['CVE-ID']);
     const z = windowData.map(d => [d.Risk_Score]);
-    const text = windowData.map(d => [`CVE: ${d['CVE-ID']}<br>Risk Score: ${d.Risk_Score.toFixed(1)}`]);
+    const text = windowData.map(d => [
+        `CVE: ${d['CVE-ID']}<br>` +
+        `Risk Score: ${d.Risk_Score.toFixed(1)}<br>` +
+        `Category: ${d.Risk_Category}<br>` +
+        `CVSS: ${d.CVSS_Numeric || 0}<br>` +
+        `EPSS: ${(d.EPSS_Numeric || 0).toFixed(3)}<br>` +
+        `Geography: ${d.Geography || 'Undefined'}<br>` +
+        `CISA KEV: ${d['CISA KEV'] || 'No'}<br>` +
+        `Exploit: ${d['Exploit Maturity'] || 'Unknown'}<br>` +
+        `Published: ${d.Published || 'Unknown'}<br>` +
+        `Modified: ${d['Last Modified'] || 'Unknown'}`
+    ]);
     
     return {
         z,
-        x: ['Total Risk'],
+        x: ['Risk Score'],
         y,
         text,
         type: 'heatmap',
         colorscale: [
-            [0, 'yellow'],   // Low risk values get yellow
-            [0.5, 'orange'], // Medium risk values get orange
-            [1, 'red']       // High risk values get red
+            [0, '#FFF3CD'],     // Light yellow for low risk
+            [0.3, '#FFE69C'],   // Yellow
+            [0.6, '#FFAB40'],   // Orange
+            [0.8, '#FF7043'],   // Red-orange
+            [1, '#D32F2F']      // Dark red for high risk
         ],
-        zmin: minRisk,     // Set explicit min for color scaling
-        zmax: maxRisk,     // Set explicit max for color scaling
+        zmin: minRisk,
+        zmax: maxRisk > minRisk ? maxRisk : minRisk + 1,
         hoverongaps: false,
         hovertemplate: '%{text}<extra></extra>',
         showscale: true,
@@ -1499,7 +1634,7 @@ function getHeatmapTrace(data, windowSize) {
             titleside: 'right',
             tickmode: 'linear',
             tick0: minRisk,
-            dtick: (maxRisk - minRisk) / 5
+            dtick: maxRisk > minRisk ? (maxRisk - minRisk) / 5 : 1
         }
     };
 }
@@ -1508,17 +1643,25 @@ function getHeatmapTrace(data, windowSize) {
 function drawCVERiskHeatmap() {
     if (!allRiskData || allRiskData.length === 0) return;
     
-    const heatmapTrace = getHeatmapTrace(allRiskData, riskWindowSize);
+    // Apply filters to risk data
+    filteredRiskData = filterRiskData(allRiskData);
+    
+    // Sort by Risk Score descending
+    filteredRiskData.sort((a, b) => (b.Risk_Score || 0) - (a.Risk_Score || 0));
+    
+    const heatmapTrace = getHeatmapTrace(filteredRiskData, riskWindowSize);
+    const actualWindowSize = Math.min(riskWindowSize, filteredRiskData.length);
+    
     const heatmapLayout = {
-        title: `CVE Risk Score Heatmap (Top ${riskWindowSize} CVEs)`,
+        title: `CVE Risk Score Heatmap (Top ${actualWindowSize} of ${filteredRiskData.length} filtered CVEs)`,
         xaxis: {title: '', showticklabels: false},
         yaxis: {
             title: 'CVE-ID', 
             automargin: true,
             autorange: 'reversed'  // This ensures the first item (highest risk) appears at top
         },
-        height: 40 + 30 * riskWindowSize,
-        margin: {l: 120, r: 80, t: 60, b: 40},
+        height: Math.max(400, 40 + 30 * actualWindowSize),
+        margin: {l: 150, r: 80, t: 60, b: 40},
         transition: {duration: 500, easing: 'cubic-in-out'},
         font: {
             size: 12
@@ -1531,13 +1674,14 @@ function drawCVERiskHeatmap() {
 
 // Initialize CVE Risk Dashboard
 function initializeCVERiskDashboard() {
-    // URL to the GitHub JSON file
-    const githubJsonUrl = 'data/RISK_SCORE.json';
+    // URL to the risk data file
+    const riskDataUrl = 'data/risk.json';
     
-    fetch(githubJsonUrl)
+    fetch(riskDataUrl)
         .then(response => response.json())
         .then(data => {
             allRiskData = data;
+            filteredRiskData = [...allRiskData];
             drawCVERiskHeatmap();
             updateWindowSliderDisplay();
         })
