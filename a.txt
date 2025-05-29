@@ -610,11 +610,11 @@ function updateVisualization() {
         createCVSSDistributionChart(globalData);
         createVendorBubbleChart(globalData);
         updateSummaryStats(globalData);
-        
-        // Update CVE Risk heatmap if data is available
-        if (allRiskData.length > 0) {
-            drawCVERiskHeatmap();
-        }
+    }
+    
+    // Update CVE Risk heatmap if data is available - always call this
+    if (typeof allRiskData !== 'undefined' && allRiskData && allRiskData.length > 0) {
+        drawCVERiskHeatmap();
     }
 }
 
@@ -1641,16 +1641,22 @@ function getHeatmapTrace(data, windowSize) {
 function drawCVERiskHeatmap() {
     if (!allRiskData || allRiskData.length === 0) return;
     
-    const heatmapTrace = getHeatmapTrace(allRiskData, riskWindowSize);
+    // Apply filters to the risk data before rendering
+    const filteredData = filterRiskData(allRiskData);
+    
+    // Sort filtered data by Risk_Score in descending order
+    filteredData.sort((a, b) => (b.Risk_Score || 0) - (a.Risk_Score || 0));
+    
+    const heatmapTrace = getHeatmapTrace(filteredData, riskWindowSize);
     const heatmapLayout = {
-        title: `CVE Risk Score Heatmap (Top ${riskWindowSize} CVEs)`,
+        title: `CVE Risk Score Heatmap (Top ${Math.min(riskWindowSize, filteredData.length)} of ${filteredData.length} filtered CVEs)`,
         xaxis: {title: '', showticklabels: false},
         yaxis: {
             title: 'CVE-ID', 
             automargin: true,
             autorange: 'reversed'  // This ensures the first item (highest risk) appears at top
         },
-        height: 40 + 30 * riskWindowSize,
+        height: Math.max(400, 40 + 30 * Math.min(riskWindowSize, filteredData.length)),
         margin: {l: 120, r: 80, t: 60, b: 40},
         transition: {duration: 500, easing: 'cubic-in-out'},
         font: {
@@ -1664,10 +1670,10 @@ function drawCVERiskHeatmap() {
 
 // Initialize CVE Risk Dashboard
 function initializeCVERiskDashboard() {
-    // URL to the GitHub JSON file
-    const githubJsonUrl = 'data/RISK_SCORE.json';
+    // URL to the risk JSON file - use the correct filename
+    const riskJsonUrl = 'data/risk.json';
     
-    fetch(githubJsonUrl)
+    fetch(riskJsonUrl)
         .then(response => response.json())
         .then(data => {
             allRiskData = data;
