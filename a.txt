@@ -1590,7 +1590,7 @@ function getHeatmapTrace(data, windowSize) {
             hovertemplate: 'No data available<extra></extra>'
         };
     }
-    
+
     // Find min and max risk scores for proper scaling
     const riskScores = windowData.map(d => d.Risk_Score);
     const minRisk = Math.min(...riskScores);
@@ -1610,22 +1610,20 @@ function getHeatmapTrace(data, windowSize) {
         `Published: ${d.Published || 'Unknown'}<br>` +
         `Modified: ${d['Last Modified'] || 'Unknown'}`
     ]);
-    
+
     return {
         z,
-        x: ['Risk Score'],
+        x: ['Total Risk'],
         y,
         text,
         type: 'heatmap',
         colorscale: [
-            [0, '#FFF3CD'],     // Light yellow for low risk
-            [0.3, '#FFE69C'],   // Yellow
-            [0.6, '#FFAB40'],   // Orange
-            [0.8, '#FF7043'],   // Red-orange
-            [1, '#D32F2F']      // Dark red for high risk
+            [0, 'yellow'],   // Low risk values get yellow
+            [0.5, 'orange'], // Medium risk values get orange
+            [1, 'red']       // High risk values get red
         ],
-        zmin: minRisk,
-        zmax: maxRisk > minRisk ? maxRisk : minRisk + 1,
+        zmin: minRisk,     // Set explicit min for color scaling
+        zmax: maxRisk,     // Set explicit max for color scaling
         hoverongaps: false,
         hovertemplate: '%{text}<extra></extra>',
         showscale: true,
@@ -1643,25 +1641,17 @@ function getHeatmapTrace(data, windowSize) {
 function drawCVERiskHeatmap() {
     if (!allRiskData || allRiskData.length === 0) return;
     
-    // Apply filters to risk data
-    filteredRiskData = filterRiskData(allRiskData);
-    
-    // Sort by Risk Score descending
-    filteredRiskData.sort((a, b) => (b.Risk_Score || 0) - (a.Risk_Score || 0));
-    
-    const heatmapTrace = getHeatmapTrace(filteredRiskData, riskWindowSize);
-    const actualWindowSize = Math.min(riskWindowSize, filteredRiskData.length);
-    
+    const heatmapTrace = getHeatmapTrace(allRiskData, riskWindowSize);
     const heatmapLayout = {
-        title: `CVE Risk Score Heatmap (Top ${actualWindowSize} of ${filteredRiskData.length} filtered CVEs)`,
+        title: `CVE Risk Score Heatmap (Top ${riskWindowSize} CVEs)`,
         xaxis: {title: '', showticklabels: false},
         yaxis: {
             title: 'CVE-ID', 
             automargin: true,
             autorange: 'reversed'  // This ensures the first item (highest risk) appears at top
         },
-        height: Math.max(400, 40 + 30 * actualWindowSize),
-        margin: {l: 150, r: 80, t: 60, b: 40},
+        height: 40 + 30 * riskWindowSize,
+        margin: {l: 120, r: 80, t: 60, b: 40},
         transition: {duration: 500, easing: 'cubic-in-out'},
         font: {
             size: 12
@@ -1674,14 +1664,13 @@ function drawCVERiskHeatmap() {
 
 // Initialize CVE Risk Dashboard
 function initializeCVERiskDashboard() {
-    // URL to the risk data file
-    const riskDataUrl = 'data/risk.json';
+    // URL to the GitHub JSON file
+    const githubJsonUrl = 'data/RISK_SCORE.json';
     
-    fetch(riskDataUrl)
+    fetch(githubJsonUrl)
         .then(response => response.json())
         .then(data => {
             allRiskData = data;
-            filteredRiskData = [...allRiskData];
             drawCVERiskHeatmap();
             updateWindowSliderDisplay();
         })
